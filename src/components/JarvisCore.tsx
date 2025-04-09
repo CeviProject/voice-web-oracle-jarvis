@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
-import { Mic, MicOff, Send, Settings } from 'lucide-react';
+import { Mic, MicOff, Send, Settings, AlertCircle } from 'lucide-react';
 import VoiceVisualizer from './VoiceVisualizer';
 import { toast } from "sonner";
 
@@ -22,6 +22,7 @@ const JarvisCore: React.FC<JarvisCoreProps> = ({ apiEndpoint }) => {
   const [isListening, setIsListening] = useState(false);
   const [inputText, setInputText] = useState('');
   const [processing, setProcessing] = useState(false);
+  const [corsError, setCorsError] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -111,31 +112,59 @@ const JarvisCore: React.FC<JarvisCoreProps> = ({ apiEndpoint }) => {
     setInputText('');
     
     try {
-      // Use the provided apiEndpoint instead of hardcoding it
+      // Log the endpoint we're sending to for debugging
       console.log(`Sending message to: ${apiEndpoint}`);
       
+      // First try with regular CORS mode to detect issues
+      try {
+        const response = await fetch(apiEndpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ message: userMessage.content }),
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          const responseText = data.response || "I've processed your request.";
+          
+          // Add bot message
+          const botMessage: Message = {
+            id: (Date.now() + 1).toString(),
+            content: responseText,
+            isUser: false,
+            timestamp: new Date()
+          };
+          
+          setMessages(prev => [...prev, botMessage]);
+          
+          // Speak the response
+          if (synthRef.current) {
+            const utterance = new SpeechSynthesisUtterance(responseText);
+            synthRef.current.speak(utterance);
+          }
+          
+          setCorsError(false);
+          return; // Success! Exit the function
+        }
+      } catch (error) {
+        // If there's an error, it might be CORS related, continue with no-cors
+        console.log("Regular fetch failed, trying with no-cors mode:", error);
+      }
+      
+      // If we're here, the regular fetch failed - try with no-cors as fallback
       const response = await fetch(apiEndpoint, {
         method: 'POST',
-        mode: 'no-cors', // Add this to handle CORS issues
+        mode: 'no-cors',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ message: userMessage.content }),
       });
       
-      // Since no-cors mode returns an opaque response that can't be read,
-      // we'll need to provide a default response
-      let responseText = "I've received your message, but I can't provide a detailed response due to cross-origin restrictions.";
-      
-      // If somehow we do get a readable response
-      try {
-        if (response.ok && response.type !== 'opaque') {
-          const data = await response.json();
-          responseText = data.response || responseText;
-        }
-      } catch (error) {
-        console.log("Could not parse response (expected with no-cors):", error);
-      }
+      // With no-cors, we can't access the response content
+      const responseText = "I received your message, but I can't provide a detailed response due to cross-origin restrictions. Please ensure the API server has CORS enabled.";
       
       // Add bot message
       const botMessage: Message = {
@@ -146,6 +175,7 @@ const JarvisCore: React.FC<JarvisCoreProps> = ({ apiEndpoint }) => {
       };
       
       setMessages(prev => [...prev, botMessage]);
+      setCorsError(true);
       
       // Speak the response
       if (synthRef.current) {
@@ -163,7 +193,8 @@ const JarvisCore: React.FC<JarvisCoreProps> = ({ apiEndpoint }) => {
       };
       
       setMessages(prev => [...prev, errorMessage]);
-      toast.error('Failed to get a response. CORS issue detected.');
+      setCorsError(true);
+      toast.error('Failed to get a response. Connection issue detected.');
     } finally {
       setProcessing(false);
     }
@@ -187,6 +218,12 @@ const JarvisCore: React.FC<JarvisCoreProps> = ({ apiEndpoint }) => {
           <div className="text-xl font-bold">J</div>
         </div>
         <h2 className="text-xl font-bold mb-2 text-center bg-gradient-to-r from-jarvis-blue to-jarvis-cyan text-transparent bg-clip-text">JARVIS</h2>
+        {corsError && (
+          <div className="flex items-center gap-2 mt-1 text-amber-400 text-xs">
+            <AlertCircle size={14} />
+            <span>CORS issue detected. API responses limited.</span>
+          </div>
+        )}
       </CardHeader>
       
       <CardContent className="flex-grow overflow-y-auto py-4 px-3 space-y-3">
