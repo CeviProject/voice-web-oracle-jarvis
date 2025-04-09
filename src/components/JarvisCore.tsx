@@ -115,19 +115,27 @@ const JarvisCore: React.FC<JarvisCoreProps> = ({ apiEndpoint }) => {
       // Log the endpoint we're sending to for debugging
       console.log(`Sending message to: ${apiEndpoint}`);
       
-      // First try with regular CORS mode to detect issues
+      // First try with regular CORS mode
       try {
         const response = await fetch(apiEndpoint, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ message: userMessage.content }),
+          body: JSON.stringify({ 
+            message: userMessage.content,
+            source: "jarvis-web-ui"
+          }),
         });
         
         if (response.ok) {
           const data = await response.json();
-          const responseText = data.response || "I've processed your request.";
+          
+          // Extract response based on the format shown in the screenshot
+          // The API expects a specific format with json.body.message
+          const responseText = typeof data === 'object' ? 
+                              (data.response || data.message || JSON.stringify(data)) : 
+                              String(data);
           
           // Add bot message
           const botMessage: Message = {
@@ -147,6 +155,9 @@ const JarvisCore: React.FC<JarvisCoreProps> = ({ apiEndpoint }) => {
           
           setCorsError(false);
           return; // Success! Exit the function
+        } else {
+          console.error('Error response:', response.status);
+          throw new Error(`Server returned ${response.status}`);
         }
       } catch (error) {
         // If there's an error, it might be CORS related, continue with no-cors
@@ -160,11 +171,14 @@ const JarvisCore: React.FC<JarvisCoreProps> = ({ apiEndpoint }) => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ message: userMessage.content }),
+        body: JSON.stringify({ 
+          message: userMessage.content,
+          source: "jarvis-web-ui"
+        }),
       });
       
       // With no-cors, we can't access the response content
-      const responseText = "I received your message, but I can't provide a detailed response due to cross-origin restrictions. Please ensure the API server has CORS enabled.";
+      const responseText = "I received your message, but I can't provide a detailed response due to cross-origin restrictions. Please ensure the API server has CORS enabled with: Access-Control-Allow-Origin: *";
       
       // Add bot message
       const botMessage: Message = {
@@ -187,7 +201,7 @@ const JarvisCore: React.FC<JarvisCoreProps> = ({ apiEndpoint }) => {
       
       const errorMessage = {
         id: (Date.now() + 1).toString(),
-        content: 'Sorry, I encountered an error connecting to the API. This may be due to CORS restrictions when connecting to localhost from a hosted application.',
+        content: 'Sorry, I encountered an error connecting to the API. This may be due to CORS restrictions or server issues. Make sure your API server is running and has CORS enabled.',
         isUser: false,
         timestamp: new Date()
       };
