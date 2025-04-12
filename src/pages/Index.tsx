@@ -5,7 +5,7 @@ import JarvisSettings from '@/components/JarvisSettings';
 import { toast } from "sonner";
 
 const Index = () => {
-  const [apiEndpoint, setApiEndpoint] = useState('http://localhost:5678/webhook-test/84880b22-41b3-4097-a44a-716475286697');
+  const [apiEndpoint, setApiEndpoint] = useState('http://localhost:5678/webhook/firstCall');
 
   // Load saved endpoint from localStorage if available
   useEffect(() => {
