@@ -1,21 +1,21 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
-import { Mic, MicOff, Send, Settings, AlertCircle } from 'lucide-react';
+import { Mic, MicOff, Send, Settings, AlertCircle, Copy, Save, Trash2, RotateCcw } from 'lucide-react';
 import VoiceVisualizer from './VoiceVisualizer';
 import { toast } from "sonner";
+import { 
+  Message, 
+  saveConversation, 
+  loadConversation,
+  clearSavedConversation,
+  copyMessageToClipboard 
+} from '@/utils/conversationUtils';
+import ConversationControls from './ConversationControls';
 
 interface JarvisCoreProps {
   apiEndpoint: string;
-}
-
-interface Message {
-  id: string;
-  content: string;
-  isUser: boolean;
-  timestamp: Date;
 }
 
 const JarvisCore: React.FC<JarvisCoreProps> = ({ apiEndpoint }) => {
@@ -39,6 +39,18 @@ const JarvisCore: React.FC<JarvisCoreProps> = ({ apiEndpoint }) => {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Load saved conversation when component mounts
+  useEffect(() => {
+    const savedMessages = loadConversation();
+    if (savedMessages.length > 0) {
+      setMessages(prev => {
+        // Keep the greeting message if no saved messages exist
+        if (savedMessages.length === 0) return prev;
+        return savedMessages;
+      });
+    }
+  }, []);
 
   useEffect(() => {
     // Initialize speech recognition and synthesis
@@ -111,6 +123,36 @@ const JarvisCore: React.FC<JarvisCoreProps> = ({ apiEndpoint }) => {
     
     // Fallback: stringify the response
     return JSON.stringify(data);
+  };
+
+  const handleSaveConversation = () => {
+    saveConversation(messages);
+  };
+
+  const handleClearConversation = () => {
+    // Reset to initial greeting
+    setMessages([{
+      id: '1',
+      content: "Hello! I'm JARVIS. How can I assist you today?",
+      isUser: false,
+      timestamp: new Date()
+    }]);
+    clearSavedConversation();
+    toast.success('Conversation cleared');
+  };
+
+  const handleCopyMessage = (content: string) => {
+    copyMessageToClipboard(content);
+  };
+
+  const handleLoadSavedConversation = () => {
+    const savedMessages = loadConversation();
+    if (savedMessages.length > 0) {
+      setMessages(savedMessages);
+      toast.success('Conversation loaded');
+    } else {
+      toast.info('No saved conversation found');
+    }
   };
 
   const sendMessage = async () => {
@@ -257,6 +299,11 @@ const JarvisCore: React.FC<JarvisCoreProps> = ({ apiEndpoint }) => {
             <span>CORS issue detected. API responses limited.</span>
           </div>
         )}
+        <ConversationControls 
+          onSave={handleSaveConversation}
+          onClear={handleClearConversation}
+          onLoad={handleLoadSavedConversation}
+        />
       </CardHeader>
       
       <CardContent className="flex-grow overflow-y-auto py-4 px-3 space-y-3">
@@ -266,7 +313,7 @@ const JarvisCore: React.FC<JarvisCoreProps> = ({ apiEndpoint }) => {
             className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}
           >
             <div 
-              className={`max-w-[80%] p-3 rounded-lg ${
+              className={`max-w-[80%] p-3 rounded-lg group relative ${
                 message.isUser 
                   ? 'bg-jarvis-blue/80 rounded-tr-none' 
                   : 'bg-slate-800/90 rounded-tl-none'
@@ -276,6 +323,13 @@ const JarvisCore: React.FC<JarvisCoreProps> = ({ apiEndpoint }) => {
               <p className="text-xs text-gray-400 mt-1 text-right">
                 {formatTime(message.timestamp)}
               </p>
+              <button 
+                className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-white p-1"
+                onClick={() => handleCopyMessage(message.content)}
+                aria-label="Copy message"
+              >
+                <Copy size={14} />
+              </button>
             </div>
           </div>
         ))}
