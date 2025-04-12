@@ -91,6 +91,28 @@ const JarvisCore: React.FC<JarvisCoreProps> = ({ apiEndpoint }) => {
     }
   };
 
+  const parseResponse = (data: any): string => {
+    // Case 1: Array with objects containing 'output' property
+    if (Array.isArray(data) && data.length > 0 && data[0].output) {
+      return data[0].output.trim();
+    }
+    
+    // Case 2: Object with response or message property
+    if (typeof data === 'object') {
+      if (data.response) return data.response;
+      if (data.message) return data.message;
+      if (data.output) return data.output;
+    }
+    
+    // Case 3: Direct string
+    if (typeof data === 'string') {
+      return data;
+    }
+    
+    // Fallback: stringify the response
+    return JSON.stringify(data);
+  };
+
   const sendMessage = async () => {
     if (!inputText.trim()) return;
     
@@ -131,11 +153,8 @@ const JarvisCore: React.FC<JarvisCoreProps> = ({ apiEndpoint }) => {
         if (response.ok) {
           const data = await response.json();
           
-          // Extract response based on the format shown in the screenshot
-          // The API expects a specific format with json.body.message
-          const responseText = typeof data === 'object' ? 
-                              (data.response || data.message || JSON.stringify(data)) : 
-                              String(data);
+          // Parse the response to extract the actual message content
+          const responseText = parseResponse(data);
           
           // Add bot message
           const botMessage: Message = {
